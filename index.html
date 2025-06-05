@@ -12,7 +12,8 @@
   <style>
     html,body{margin:0;height:100%;overflow:hidden;background:transparent;font-family:System-ui}
     a-scene{width:100vw;height:100vh;background:transparent!important}
-    #hud{position:fixed;top:8px;left:8px;width:64px;background:#fff8;border:2px solid #fff;border-radius:8px;pointer-events:none;z-index:20}
+    #hud{position:fixed;top:8px;left:8px;width:64px;background:#fff8;border:2px solid #fff;
+         border-radius:8px;pointer-events:none;z-index:20}
     #loader{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
             background:#000c;color:#fff;font-size:18px;z-index:15}
   </style>
@@ -23,7 +24,11 @@
 
 <a-scene
   embedded
-  mindar-image="imageTargetSrc:targets.mind;autoStart:true;filterBeta:0.95;filterMinCF:0.00001"
+  mindar-image="
+        imageTargetSrc:targets.mind;
+        autoStart:true;
+        filterBeta:0.7;          /* łagodniejszy filtr stabilizacji */
+        filterMinCF:0.0000001"   /* bardzo niski próg pewności → łatwiejsze wykrycie */
   vr-mode-ui="enabled:false"
   device-orientation-permission-ui="enabled:true">
 
@@ -43,21 +48,20 @@
 </a-scene>
 
 <script>
-/* ukryj loader, kiedy MindAR zacznie renderować */
-document.querySelector('a-scene').addEventListener('renderstart',()=>loader.remove());
+/* ukryj loader, kiedy MindAR faktycznie gotowy */
+document.querySelector('a-scene').addEventListener('arReady',()=>loader.remove());
 
-/*–––  1. PLANES CACHE  –––––––––––––––––––––––––––––––––––––––––––*/
-const PLANE_CACHE = new Map();   // zapobiega ciągłemu tworzeniu nowych obiektów
-
+/* 1. cache płaszczyzn, by nie tworzyć nowych elementów przy każdym wykryciu */
+const PLANE_CACHE = new Map();
 function getPlane(sel){
   if (PLANE_CACHE.has(sel)) return PLANE_CACHE.get(sel);
 
-  const img = document.querySelector(sel);
-  const ar  = img.naturalHeight / img.naturalWidth;
+  const img=document.querySelector(sel);
+  const ar = img.naturalHeight / img.naturalWidth;
 
-  const p   = document.createElement('a-plane');
+  const p  = document.createElement('a-plane');
   p.setAttribute('src', sel);
-  p.setAttribute('width',  '1');
+  p.setAttribute('width','1');
   p.setAttribute('height', ar.toString());
   p.setAttribute('position','0 0.05 0.005');
   p.setAttribute('material','shader:flat;transparent:true');
@@ -66,12 +70,12 @@ function getPlane(sel){
   return p;
 }
 
-/*–––  2. BEZPIECZNE CZYSZCZENIE  ––––––––––––––––––––––––––––––––*/
+/* 2. bezpieczne czyszczenie anchorów */
 function clearAnchor(a){
   while (a.firstChild) a.removeChild(a.firstChild);
 }
 
-/* podpinanie obrazków do anchorów */
+/* 3. podpinanie tekstur do anchorów */
 function bind(anchorId, texSel){
   const a=document.getElementById(anchorId);
   a.addEventListener('targetFound',()=>{
@@ -85,24 +89,23 @@ bind('anchor-dom'     ,'#tex-dom');
 bind('anchor-skrzynia','#tex-skrzynia');
 bind('anchor-eq'      ,'#tex-eq');
 
-/*–––  3. LEKKI RESTART – tylko jeśli tracking już działa  ––*/
-let restarting = false;
+/* 4. lekki restart trackingu (tap) – zapobiega zacięciom */
+let restarting=false;
 function restartAR(){
-  if (restarting) return;             // blokada wielokrotnego kliknięcia
-  restarting = true;
+  if (restarting) return;
+  restarting=true;
 
-  const scene  = document.querySelector('a-scene');
-  const mindAR = scene.components['mindar-image'];
-  if(!mindAR?.controller){ restarting=false; return; }
+  const scene=document.querySelector('a-scene');
+  const mind = scene.components['mindar-image'];
+  if(!mind?.controller){ restarting=false; return; }
 
-  mindAR.controller.stop();
+  mind.controller.stop();
   document.querySelectorAll('[mindar-image-target]').forEach(clearAnchor);
 
-  /* restart po ~200 ms – bez glitcha kamery */
   setTimeout(()=>{
-    mindAR.controller.start();
-    restarting = false;
-  }, 200);
+    mind.controller.start();
+    restarting=false;
+  },200);
 }
 window.addEventListener('click',restartAR);
 </script>
